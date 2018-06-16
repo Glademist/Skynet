@@ -1,8 +1,8 @@
-theugly
+ugly
 workhorse
-thebad
+bad
 rocket
-thegood
+good
 pilot
 me
 digger
