@@ -42,17 +42,17 @@ WorkersFilename = "docold.txt"
 OverrideFilename = "overold.txt"
 SourceAbeceda = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 Population_count = 5 #5 not used at the moment
-PopulationSize = 350 #200 usually
-MutationRate = 20 #percentage of mutations, could be variable in time / cycle
+PopulationSize = 50 #200 usually
+MutationRate = 10 #percentage of mutations, could be variable in time / cycle
 CrossoverRate = 50 #percentage of crossover rate
-Cycles = 200 #200
+Cycles = 1000 #200
 ElitePercentage = 10 #percentage of population seeded from Elite specimens.
 #Penalties in low numbers tend to find better solutions.
-Penalty_interval = 2 #300 for final evaluation
-Penalty_weekend = 1 #150 
-Penalty_fridays = 1 #50
-Penalty_count = 2 #1000
-Penalty_critical = 3
+Penalty_interval = 1 #2 
+Penalty_weekend = 1 #1 
+Penalty_fridays = 1 #1
+Penalty_count = 1 #2
+Penalty_critical = 10
 """
 Fitness calculation.. the higher the better. We subtract actual penalties from
  theoretical maximum to do this.
@@ -199,11 +199,11 @@ def calendar_interval_get():
     """ Set first and last day of the time span we write nightshifts for."""
 
     start_rok = int(2018)
-    start_mesic= int(7)
+    start_mesic= int(9)
     start_den = int(1)
     end_year = int(2018)
-    end_month = int(7)
-    end_day = int(31)
+    end_month = int(9)
+    end_day = int(30)
     first_day = datetime(start_rok, start_mesic, start_den)
     last_day = datetime(end_year, end_month, end_day)
     return (first_day, last_day)
@@ -320,7 +320,7 @@ def timespan_ideal_values(kalendar_source,workers_sources):
     ideal_weekend = total_weekend - minus_weekend
     ideal_weekend = ideal_weekend / weekend_workers
 
-    return (ideal_workday, ideal_weekend)
+    return (float(ideal_workday), float(ideal_weekend))
 
 def generate_random_Sequence(abeceda, kalendar, firstday): 
     """ Generate random sequence from possible workers each day.
@@ -421,6 +421,11 @@ def entity_fitness(workers,Sequence,kalendar,firstday,ideal_fridays):
         currentWorker = workers[key]
         limit_workday = currentWorker.limit_workday
         limit_weekend = currentWorker.limit_weekend
+        if float(limit_workday).is_integer():
+            hard = True
+        else:
+            hard = False
+
         duties = []
         duties_p = []
         duties_friday = []
@@ -463,11 +468,18 @@ def entity_fitness(workers,Sequence,kalendar,firstday,ideal_fridays):
         penalties. Since at the moment it is NONCUMULATIVE. 
 
         """
+        if hard == False:
+            if int(limit_weekend) <= len(duties_weekend) <= int(limit_weekend)+1:
+                pass
+            else:
+                penalty_count = Penalty_count 
 
-        if int(limit_weekend) <= len(duties_weekend) <= int(limit_weekend)+1:
-            pass
         else:
-            penalty_count = Penalty_count 
+            if int(limit_weekend) == len(duties_weekend):
+                pass
+            else:
+                penalty_count = Penalty_count 
+
             
         #add friday + weekend shifts into one array and sort by date
         duties_pv = duties_friday + duties_weekend 
@@ -489,16 +501,28 @@ def entity_fitness(workers,Sequence,kalendar,firstday,ideal_fridays):
         If hardcoded and not X, it should equal the integer number.
         This functionality is not yet built in.
         """
-        if int(limit_workday) <= len(duties_p) <= int(limit_workday)+1:
-            pass
+        if hard == False:
+            if int(limit_workday) <= len(duties_p) <= int(limit_workday)+1:
+                pass
+            else:
+                penalty_count = Penalty_count 
         else:
-            penalty_count = Penalty_count 
+            if int(limit_workday) == len(duties_p):
+                pass
+            else:
+                penalty_count = Penalty_count 
 
         # we penalize wrong total number toom should have own penalty probably
-        if int(limit_workday+limit_weekend) <= len(duties) <= int(limit_workday+limit_weekend)+1: 
-            pass
+        if hard == False:
+            if int(limit_workday+limit_weekend) <= len(duties) <= int(limit_workday+limit_weekend)+1: 
+                pass
+            else:
+                penalty_count += Penalty_count
         else:
-            penalty_count += Penalty_count
+            if int(limit_workday+limit_weekend) == len(duties): 
+                pass
+            else:
+                penalty_count += Penalty_count
 
         # we penalize if someone has more fridays then average.
         fridays = len(duties_friday)
@@ -589,6 +613,7 @@ def fin_entity_fitness(workers,Sequence,kalendar,firstday,ideal_fridays):
         penalty_interval = 0
         penalty_weekend = 0
         penalty_fridays = 0
+        penalty_critical = 0
         penalty = 0
 
         yy = 0
@@ -661,10 +686,11 @@ def fin_entity_fitness(workers,Sequence,kalendar,firstday,ideal_fridays):
                         penalty_critical = Penalty_critical 
                         print ("Critical penalty",key)
                     else:
+                        print ("Penalty za interval",key)
                         penalty_interval = Penalty_interval 
             xx += 1
 
-        penalty = penalty_count + penalty_fridays + penalty_weekend + penalty_interval
+        penalty = penalty_count + penalty_fridays + penalty_weekend + penalty_interval + penalty_critical
         fitness = 0
         fitness = Theoretical_fitness - penalty 
         total_fitness += fitness
@@ -797,13 +823,17 @@ def generate_population(hat, population_size, mutation, kalendar, first_day, eli
 
     return new_population
 
-def save_results(kalendar): 
+def save_results(kalendar, first_day): 
     """ save the final results into a text file."""
 
     with open("results.txt", "w") as f:
-        for day in kalendar:
+        u = 0
+        while u < len(kalendar):
+            current_date = first_day + timedelta(days = u)
+            current_date = current_date.strftime('%Y-%m-%d')
             #content = day  + " " + kalendar[day].worker + "\n"
-            f.write (kalendar[day].worker + "\n")
+            f.write (kalendar[current_date].worker + "\n")
+            u += 1
     return True
 
 #CORE 
@@ -960,20 +990,25 @@ if __name__ == "__main__":
     for key in workers_sources:
         print (key[:3], end=" ")
     print("")
-    for day in kalendar_source:
-        print (day, end= " ")
+
+    u = 0
+    while u < len(kalendar_source):
+        current_date = first_day + timedelta(days = u)
+        current_date = current_date.strftime('%Y-%m-%d')
+        print (current_date, end= " ")
         for key in workers_sources:
-            if key == kalendar_source[day].worker:
+            if key == kalendar_source[current_date].worker:
                 print (" X ", end = " ")
-                if workers_sources[key].letter not in kalendar_source[day].possible_duty:
+                if workers_sources[key].letter not in kalendar_source[current_date].possible_duty:
                     print ("Hard limit error")
             else:
                 print ("   ", end = " ")
         print (" ")
+        u += 1
 
     #Notes for the human which can not be implemented via a strict YES or NO setting
     print("Kocmanova desires v Zari jen dve duties")
     print("Rambo nedesires v Cervenci a Srpnu duties")
     print("Skach desires co nejvic sluzeb mezi 2 a 12 srpnem")
 
-    save_results(kalendar_source)
+    save_results(kalendar_source, first_day)
